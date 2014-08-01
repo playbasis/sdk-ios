@@ -2,8 +2,8 @@
 //  playbasis.m
 //  playbasis
 //
-//  Created by Maethee Chongchitnant on 5/14/56 BE.
-//  Copyright (c) 2556 Maethee Chongchitnant. All rights reserved.
+//  Created by Playbasis.
+//  Copyright (c) 2556 Playbasis. All rights reserved.
 //
 
 #import "playbasis.h"
@@ -190,12 +190,37 @@ static NSString * const BASE_URL = @"https://api.pbapp.net/";
     return [self call:@"Auth" withData:data andDelegate:authDelegate];
 }
 
+-(PBRequest *)renew:(NSString *)apiKey :(NSString *)apiSecret :(id<PBResponseHandler>)delegate
+{
+    apiKeyParam = [[NSString alloc] initWithFormat:@"?api_key=%@", apiKey];
+    authDelegate = [[PBAuthDelegate alloc] initWithPlaybasis:self andDelegate:delegate];
+    NSString *data = [NSString stringWithFormat:@"api_key=%@&api_secret=%@", apiKey, apiSecret];
+    return [self call:@"Auth/renew" withData:data andDelegate:authDelegate];
+}
+
 -(PBRequest *)player:(NSString *)playerId :(id<PBResponseHandler>)delegate
 {
     NSAssert(token, @"access token is nil");
     NSString *method = [NSString stringWithFormat:@"Player/%@", playerId];
     NSString *data = [NSString stringWithFormat:@"token=%@", token];
     return [self call:method withData:data andDelegate:delegate];
+}
+
+// playerListId player id as used in client's website separate with ',' example '1,2,3'
+-(PBRequest *)playerList:(NSString *)playerListId :(id<PBResponseHandler>)delegate
+{
+   NSAssert(token, @"access token is nil");
+   NSString *method = [NSString stringWithFormat:@"Player/list"];
+   NSString *data = [NSString stringWithFormat:@"token=%@&list_player_id%@", token, playerListId];
+   return [self call:method withData:data andDelegate:delegate];
+}
+
+-(PBRequest *)playerDetail:(NSString *)playerId :(id<PBResponseHandler>)delegate
+{
+   NSAssert(token, @"access token is nil");
+   NSString *method = [NSString stringWithFormat:@"Player/%@/data/all", playerId];
+   NSString *data = [NSString stringWithFormat:@"token=%@", token];
+   return [self call:method withData:data andDelegate:delegate];
 }
 
 //
@@ -229,6 +254,47 @@ static NSString * const BASE_URL = @"https://api.pbapp.net/";
     return [self call:method withData:data andDelegate:delegate];
 }
 
+// @param	...[vararg]		Key-value for data to be updated.
+//                          The following keys are supported:
+//                          - username
+//                          - email
+//                          - image
+//                          - exp
+//                          - level
+//                          - facebook_id
+//                          - twitter_id
+//                          - password		assumed hashed
+//                          - first_name
+//                          - last_name
+//                          - nickname
+//                          - gender		1=Male, 2=Female
+//                          - birth_date	format YYYY-MM-DD
+-(PBRequest *)updateUser:(NSString *)playerId :(id<PBResponseHandler>)delegate :(NSString *)firstArg ,...
+{
+    NSAssert(token, @"access token is nil");
+    NSString *method = [NSString stringWithFormat:@"Player/%@/update", playerId];
+    NSMutableString *data = [NSMutableString stringWithFormat:@"token=%@", token];
+
+    id updateData;
+    va_list argumentList;
+    va_start(argumentList, firstArg);
+    while ((updateData = va_arg(argumentList, NSString *)))
+    {
+        [data appendFormat:@"&%@", updateData];
+    }
+    va_end(argumentList);
+    
+    return [self call:method withData:data andDelegate:delegate];
+}
+
+-(PBRequest *)deleteUser:(NSString *)playerId :(id<PBResponseHandler>)delegate
+{
+    NSAssert(token, @"access token is nil");
+    NSString *method = [NSString stringWithFormat:@"Player/%@/delete", playerId];
+    NSString *data = [NSString stringWithFormat:@"token=%@", token];
+    return [self call:method withData:data andDelegate:delegate];
+}
+
 -(PBRequest *)login:(NSString *)playerId :(id<PBResponseHandler>)delegate;
 {
     NSAssert(token, @"access token is nil");
@@ -254,6 +320,16 @@ static NSString * const BASE_URL = @"https://api.pbapp.net/";
 -(PBRequest *)point:(NSString *)playerId :(NSString *)pointName :(id<PBResponseHandler>)delegate
 {
     NSString *method = [NSString stringWithFormat:@"Player/%@/point/%@%@", playerId, pointName, apiKeyParam];
+    return [self call:method withData:nil andDelegate:delegate];
+}
+
+-(PBRequest *)pointHistory:(NSString *)playerId :(NSString *)pointName :(unsigned int)offset :(unsigned int)limit :(id<PBResponseHandler>)delegate
+{
+    NSString *data = [NSString stringWithFormat:@"&offset=%u&limit=%u", offset, limit];
+    if (pointName != nil) {
+        data = [NSString stringWithFormat:@"%@&point_name=%@", data, pointName];
+    }
+    NSString *method = [NSString stringWithFormat:@"Player/%@/point_history%@%@", playerId, apiKeyParam, data];
     return [self call:method withData:nil andDelegate:delegate];
 }
 
@@ -287,9 +363,55 @@ static NSString * const BASE_URL = @"https://api.pbapp.net/";
     return [self call:method withData:nil andDelegate:delegate];
 }
 
--(PBRequest *)badges :(id<PBResponseHandler>)delegate
+-(PBRequest *)ranks:(unsigned int)limit :(id<PBResponseHandler>)delegate
 {
-    NSString *method = [NSString stringWithFormat:@"Badge%@", apiKeyParam];
+    NSString *method = [NSString stringWithFormat:@"Player/ranks/%u%@", limit, apiKeyParam];
+    return [self call:method withData:nil andDelegate:delegate];
+}
+
+-(PBRequest *)level:(unsigned int)level :(id<PBResponseHandler>)delegate
+{
+    NSString *method = [NSString stringWithFormat:@"Player/level/%u%@", level, apiKeyParam];
+    return [self call:method withData:nil andDelegate:delegate];
+}
+
+-(PBRequest *)levels:(id<PBResponseHandler>)delegate
+{
+    NSString *method = [NSString stringWithFormat:@"Player/levels%@", apiKeyParam];
+    return [self call:method withData:nil andDelegate:delegate];
+}
+
+-(PBRequest *)claimBadge:(NSString *)playerId :(NSString *)badgeId :(id<PBResponseHandler>)delegate
+{
+    NSAssert(token, @"access token is nil");
+    NSString *method = [NSString stringWithFormat:@"Player/%@/badge/%@/claim", playerId, badgeId];
+    NSString *data = [NSString stringWithFormat:@"token=%@", token];
+    return [self call:method withData:data andDelegate:delegate];
+}
+
+-(PBRequest *)redeemBadge:(NSString *)playerId :(NSString *)badgeId :(id<PBResponseHandler>)delegate
+{
+    NSAssert(token, @"access token is nil");
+    NSString *method = [NSString stringWithFormat:@"Player/%@/badge/%@/redeem", playerId, badgeId];
+    NSString *data = [NSString stringWithFormat:@"token=%@", token];
+    return [self call:method withData:data andDelegate:delegate];
+}
+
+-(PBRequest *)goodsOwned:(NSString *)playerId :(id<PBResponseHandler>)delegate
+{
+    NSString *method = [NSString stringWithFormat:@"Player/%@/goods%@", playerId, apiKeyParam];
+    return [self call:method withData:nil andDelegate:delegate];
+}
+
+-(PBRequest *)questOfPlayer:(NSString *)playerId :(NSString *)questId :(id<PBResponseHandler>)delegate
+{
+    NSString *method = [NSString stringWithFormat:@"Player/quest/%@%@&player_id=%@", questId, apiKeyParam, playerId];
+    return [self call:method withData:nil andDelegate:delegate];
+}
+
+-(PBRequest *)questListOfPlayer:(NSString *)playerId :(id<PBResponseHandler>)delegate
+{
+    NSString *method = [NSString stringWithFormat:@"Player/quest%@&player_id=%@", apiKeyParam, playerId];
     return [self call:method withData:nil andDelegate:delegate];
 }
 
@@ -299,15 +421,21 @@ static NSString * const BASE_URL = @"https://api.pbapp.net/";
     return [self call:method withData:nil andDelegate:delegate];
 }
 
--(PBRequest *)badgeCollections :(id<PBResponseHandler>)delegate
+-(PBRequest *)badges :(id<PBResponseHandler>)delegate
 {
-    NSString *method = [NSString stringWithFormat:@"Badge/collection%@", apiKeyParam];
+    NSString *method = [NSString stringWithFormat:@"Badge%@", apiKeyParam];
     return [self call:method withData:nil andDelegate:delegate];
 }
 
--(PBRequest *)badgeCollection:(NSString *)collectionId :(id<PBResponseHandler>)delegate
+-(PBRequest *)goods:(NSString *)goodId :(id<PBResponseHandler>)delegate
 {
-    NSString *method = [NSString stringWithFormat:@"Badge/collection/%@%@", collectionId, apiKeyParam];
+    NSString *method = [NSString stringWithFormat:@"Goods/%@%@", goodId, apiKeyParam];
+    return [self call:method withData:nil andDelegate:delegate];
+}
+
+-(PBRequest *)goodsList:(id<PBResponseHandler>)delegate
+{
+    NSString *method = [NSString stringWithFormat:@"Goods%@", apiKeyParam];
     return [self call:method withData:nil andDelegate:delegate];
 }
 
@@ -342,6 +470,75 @@ static NSString * const BASE_URL = @"https://api.pbapp.net/";
     return [self call:@"Engine/rule" withData:data andDelegate:delegate];
 }
 
+-(PBRequest *)quests:(id<PBResponseHandler>)delegate
+{
+    NSString *method = [NSString stringWithFormat:@"Quest%@", apiKeyParam];
+    return [self call:method withData:nil andDelegate:delegate];
+}
+
+-(PBRequest *)quest:(NSString *)questId :(id<PBResponseHandler>)delegate
+{
+    NSString *method = [NSString stringWithFormat:@"Quest/%@%@", questId, apiKeyParam];
+    return [self call:method withData:nil andDelegate:delegate];
+}
+
+-(PBRequest *)mission:(NSString *)questId :(NSString *)missionId :(id<PBResponseHandler>)delegate
+{
+    NSString *method = [NSString stringWithFormat:@"Quest/%@/misson/%@%@", questId, missionId, apiKeyParam];
+    return [self call:method withData:nil andDelegate:delegate];
+}
+
+-(PBRequest *)questAvailable:(NSString *)questId :(NSString *)playerId :(id<PBResponseHandler>)delegate
+{
+    NSString *method = [NSString stringWithFormat:@"Quest/%@/available/%@&player_id=%@", questId, apiKeyParam, playerId];
+    return [self call:method withData:nil andDelegate:delegate];
+}
+
+-(PBRequest *)questsAvailable:(NSString *)playerId :(id<PBResponseHandler>)delegate
+{
+    NSString *method = [NSString stringWithFormat:@"Quest/available/%@&player_id=%@", apiKeyParam, playerId];
+    return [self call:method withData:nil andDelegate:delegate];
+}
+
+-(PBRequest *)joinQuest:(NSString *)questId :(NSString *)playerId :(id<PBResponseHandler>)delegate
+{
+    NSAssert(token, @"access token is nil");
+    NSString *method = [NSString stringWithFormat:@"Quest/%@/join", questId];
+    NSString *data = [NSString stringWithFormat:@"token=%@&player_id%@", token, playerId];
+    return [self call:method withData:data andDelegate:delegate];
+}
+
+-(PBRequest *)cancelQuest:(NSString *)questId :(NSString *)playerId :(id<PBResponseHandler>)delegate
+{
+    NSAssert(token, @"access token is nil");
+    NSString *method = [NSString stringWithFormat:@"Quest/%@/cancel", questId];
+    NSString *data = [NSString stringWithFormat:@"token=%@&player_id%@", token, playerId];
+    return [self call:method withData:data andDelegate:delegate];
+}
+
+-(PBRequest *)redeemGoods:(NSString *)goodsId :(NSString *)playerId :(unsigned int)amount :(id<PBResponseHandler>)delegate
+{
+    NSAssert(token, @"access token is nil");
+    if(amount < 1){
+        amount = 1;
+    }
+    NSString *method = [NSString stringWithFormat:@"Redeem/goods"];
+    NSString *data = [NSString stringWithFormat:@"token=%@&goods_id=%@&player_id%@&amount=%u", token, goodsId, playerId, amount];
+    return [self call:method withData:data andDelegate:delegate];
+}
+
+-(PBRequest *)recentPoint:(unsigned int)offset :(unsigned int)limit :(id<PBResponseHandler>)delegate
+{
+    NSString *method = [NSString stringWithFormat:@"Service/recent_point%@&offset=%u&limit=%u", apiKeyParam, offset, limit];
+    return [self call:method withData:nil andDelegate:delegate];
+}
+
+-(PBRequest *)recentPointByName:(NSString *)pointName :(unsigned int)offset :(unsigned int)limit :(id<PBResponseHandler>)delegate
+{
+    NSString *method = [NSString stringWithFormat:@"Service/recent_point%@&offset=%u&limit=%u&point_name=%@", apiKeyParam, offset, limit, pointName];
+    return [self call:method withData:nil andDelegate:delegate];
+}
+
 -(PBRequest *)call:(NSString *)method withData:(NSString *)data andDelegate:(id<PBResponseHandler>)delegate
 {
     id request = nil;
@@ -353,7 +550,7 @@ static NSString * const BASE_URL = @"https://api.pbapp.net/";
     else
     {
         NSData *postData = [data dataUsingEncoding:NSUTF8StringEncoding];
-        NSString *postLength = [NSString stringWithFormat:@"%d", [postData length]];
+        NSString *postLength = [NSString stringWithFormat:@"%lu", (unsigned long)[postData length]];
         request = [NSMutableURLRequest requestWithURL:url];
         [request setHTTPMethod:@"POST"];
         [request setValue:@"application/x-www-form-urlencoded charset=utf-8" forHTTPHeaderField:@"Content-Type"];
